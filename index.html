@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Calcul Mental Arena</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);--c1:#6c5ce7;--c2:#00b894;--c3:#fd79a8;--card:#ffffff;--tx:#2d3436}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;font-family:'Segoe UI',system-ui,Arial,sans-serif;color:#fff;background:linear-gradient(135deg,#341f97,#6c5ce7 50%,#0984e3);background-attachment:fixed}
+#app{max-width:820px;margin:auto;padding:18px}
+h1{text-align:center;font-size:2.2rem;margin:10px 0 4px}
+.sub{text-align:center;opacity:.85;margin-bottom:20px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+.card{background:var(--card);color:var(--tx);border-radius:18px;padding:20px;cursor:pointer;box-shadow:0 8px 20px #0003;transition:.2s;text-align:center;border:0;font:inherit}
+.card:hover{transform:translateY(-5px) rotate(-1deg)}
+.card .e{font-size:3rem}.card h3{margin:6px 0}.card p{margin:0;font-size:.9rem;opacity:.75}
+button{font:inherit;cursor:pointer;border:0;border-radius:12px;padding:10px 18px;background:var(--c2);color:#fff;font-weight:700}
+button.ghost{background:#ffffff30}
+.bar{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:12px}
+.tbox{height:14px;background:#0004;border-radius:9px;overflow:hidden;margin-bottom:14px}
+#tb{height:100%;width:100%;background:linear-gradient(90deg,#55efc4,#00b894);transition:width .05s linear}
+#tb.low{background:linear-gradient(90deg,#ff7675,#d63031)}
+.q{background:#fff;color:var(--tx);border-radius:20px;min-height:170px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:clamp(1.6rem,6vw,3rem);font-weight:800;padding:16px;text-align:center;box-shadow:0 8px 20px #0003}
+.q small{font-size:.9rem;font-weight:400;opacity:.6;margin-top:8px}
+.n{font-size:clamp(4rem,18vw,8rem);color:var(--c1);animation:pop .3s}
+#msg{min-height:34px;text-align:center;font-size:1.2rem;font-weight:700;margin:10px 0}
+.inp{display:flex;gap:8px;justify-content:center}
+input{font:inherit;font-size:1.8rem;width:200px;text-align:center;border-radius:14px;border:3px solid #fff;padding:8px}
+.res{text-align:center;padding:30px 10px}.big{font-size:6rem;animation:pop .6s}.stars{font-size:2.6rem;margin:10px}
+.row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.field{position:relative;overflow:hidden;height:52vh;min-height:330px;border-radius:20px;background:linear-gradient(#74b9ff,#0984e3 70%,#0652a8);box-shadow:0 8px 20px #0003;margin-bottom:12px}
+.bub{position:absolute;top:0;padding:14px 16px;border-radius:40px;background:radial-gradient(circle at 30% 30%,#fff,#a29bfe);color:#2d3436;font-weight:800;font-size:1.3rem;white-space:nowrap;box-shadow:0 0 12px #fff8}
+.boom{animation:boom .4s forwards}
+.shake{animation:shake .4s}
+.badge{font-size:.8rem;opacity:.8}
+#cv{position:fixed;inset:0;pointer-events:none;z-index:9}
+@keyframes pop{from{transform:scale(.3);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes boom{to{transform:scale(2) ;opacity:0}}
+@keyframes shake{25%{transform:translateX(-10px)}75%{transform:translateX(10px)}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<canvas id="cv"></canvas>
+<script>
+const $=s=>document.querySelector(s),R=(a,b)=>Math.floor(Math.random()*(b-a+1))+a,sleep=ms=>new Promise(r=>setTimeout(r,ms));
+let W={};try{W=JSON.parse(localStorage.getItem('cm')||'{}')}catch(e){}
+const save=(k,v)=>{W[k]=v;try{localStorage.setItem('cm',JSON.stringify(W))}catch(e){}};
+const MODES=[
+{n:'Enchaîne-les !',e:'🔥',d:'5 calculs justes d\'affilée. Une erreur ou le temps écoulé : on recommence !'},
+{n:'Défilé de nombres',e:'🎞️',d:'Les nombres défilent (1 s chacun). Donne la somme !'},
+{n:'Suite d\'opérations',e:'🧮',d:'Enchaîne + − × ÷ de gauche à droite.'},
+{n:'Pluie de bulles',e:'🫧',d:'Éclate les calculs avant qu\'ils touchent le sol. 3 vies !'}];
+const LV=[['Moyen','🟢'],['Difficile','🟠'],['Dieu','⚡']];
+let tok=0,tm=null,S={};
+const render=h=>$('#app').innerHTML=h;
+const stopT=()=>{clearInterval(tm);tm=null};
+
+function menu(){tok++;stopT();S={};
+render(`<h1>🧠 Calcul Mental Arena</h1><div class="sub">Choisis ton défi !</div><div class="grid">${MODES.map((m,i)=>`<button class="card" onclick="levels(${i})"><div class="e">${m.e}</div><h3>${m.n}</h3><p>${m.d}</p></button>`).join('')}</div>`)}
+function levels(m){tok++;stopT();
+render(`<div class="bar"><button class="ghost" onclick="menu()">← Menu</button></div><h1>${MODES[m].e} ${MODES[m].n}</h1><div class="sub">${MODES[m].d}</div><div class="grid">${LV.map((l,i)=>`<button class="card" onclick="start(${m},${i})"><div class="e">${l[1]}</div><h3>${l[0]}</h3><p class="badge">${m==3?'🏆 Record : '+(W['m4-'+i]||0):'🏆 Victoires : '+(W['m'+(m+1)+'-'+i]||0)}</p></button>`).join('')}</div>`)}
+
+function start(m,l){tok++;stopT();S={m,l};
+render(`<div class="bar"><button class="ghost" onclick="levels(${m})">← Quitter</button><b>${MODES[m].n} · ${LV[l][0]}</b><span id="sc"></span></div>
+<div class="tbox" ${m==3?'style="display:none"':''}><div id="tb"></div></div>
+${m==3?'<div class="field" id="q"></div>':'<div class="q" id="q"></div>'}<div id="msg"></div>
+<div class="inp"><input id="in" type="number" inputmode="numeric" autocomplete="off" ${m==1||m==2?'disabled':''}><button id="ok">OK</button></div>`);
+const go=()=>S.sub&&S.sub();$('#ok').onclick=go;$('#in').onkeydown=e=>{if(e.key=='Enter')go()};
+[m1,m2,m3,m4][m](l)}
+
+function startT(s,cb){stopT();const t0=Date.now(),b=$('#tb');tm=setInterval(()=>{const f=1-(Date.now()-t0)/(s*1000);b.style.width=Math.max(f,0)*100+'%';b.className=f<.3?'low':'';if(f<=0){stopT();cb()}},50)}
+function ask(t){return new Promise(r=>{const i=$('#in');i.value='';i.disabled=false;i.focus();S.sub=()=>{if(i.value==='')return;stopT();S.sub=null;r(+i.value)};startT(t,()=>{S.sub=null;r(null)})})}
+const msg=(t,c)=>{const e=$('#msg');if(e){e.textContent=t;e.className=c||''}};
+const resetT=()=>{stopT();$('#tb').style.width='100%';$('#tb').className=''};
+
+// ---------- MODE 1
+function gen1(l){let a,b,t;
+if(l==0){t=R(0,2);if(t==0){a=R(10,60);b=R(10,40);return{t:`${a} + ${b}`,a:a+b}}if(t==1){a=R(30,90);b=R(10,a-1);return{t:`${a} − ${b}`,a:a-b}}a=R(2,9);b=R(2,9);return{t:`${a} × ${b}`,a:a*b}}
+if(l==1){t=R(0,3);if(t==0){a=R(100,500);b=R(20,99);return{t:`${a} + ${b}`,a:a+b}}if(t==1){a=R(100,900);b=R(20,99);return{t:`${a} − ${b}`,a:a-b}}if(t==2){a=R(6,12);b=R(6,12);return{t:`${a} × ${b}`,a:a*b}}a=R(11,19);b=R(3,9);return{t:`${a} × ${b}`,a:a*b}}
+t=R(0,3);if(t==0){a=R(12,99);b=R(3,9);return{t:`${a} × ${b}`,a:a*b}}if(t==1){a=R(11,25);b=R(11,25);return{t:`${a} × ${b}`,a:a*b}}if(t==2){a=R(500,999);b=R(100,499);return{t:`${a} − ${b}`,a:a-b}}a=R(11,30);return{t:`${a}²`,a:a*a}}
+async function m1(l){const my=tok,T=[15,12,10][l];let st=0,tries=0;
+while(st<5){const q=gen1(l);$('#q').textContent=q.t+' = ?';$('#sc').textContent='●'.repeat(st)+'○'.repeat(5-st);
+const v=await ask(T);if(my!=tok)return;tries++;
+if(v===q.a){st++;msg('✅ Bien joué !','');confetti(25);if(st<5)await sleep(500);}
+else{if(st>0)$('#q').classList.add('shake');msg((v===null?'⏰ Temps écoulé ! ':'❌ Raté ! ')+q.t+' = '+q.a+(st?' — retour à 0':''));st=0;await sleep(1800);$('#q').classList.remove('shake')}
+msg('')}
+$('#sc').textContent='●●●●●';save('m1-'+l,(W['m1-'+l]||0)+1);
+end('🏆','SÉRIE PARFAITE !',`5 d'affilée en ${tries} essai${tries>1?'s':''}`,tries<=5?3:tries<=8?2:1)}
+
+// ---------- MODES 2 & 3 (manches)
+async function rounds(l,mk,pres){const my=tok,N=5;let ok=0;
+for(let i=0;i<N;i++){$('#sc').textContent=`Manche ${i+1}/${N} · ✅ ${ok}`;const q=mk(l);$('#in').disabled=true;resetT();
+await pres(q,my);if(my!=tok)return;const v=await ask(q.time);if(my!=tok)return;
+if(v===q.a){ok++;msg('✅ Bravo !');confetti(60)}else msg((v===null?'⏰ Temps écoulé. ':'❌ Raté. ')+'Réponse : '+q.a);
+$('#in').disabled=true;await sleep(1500);msg('')}
+const k='m'+(S.m+1)+'-'+l;if(ok==N)save(k,(W[k]||0)+1);
+end(ok==N?'🏆':ok>=3?'👏':'💪',ok==N?'SANS FAUTE !':'Fin de partie',`Score : ${ok} / ${N}`,ok==N?3:ok==4?2:ok>=3?1:0)}
+function mk2(l){const n=[R(3,4),R(5,6),7][l],[lo,hi]=[[2,20],[5,50],[10,99]][l],A=[];for(let i=0;i<n;i++)A.push(R(lo,hi));return{A,a:A.reduce((x,y)=>x+y),time:[10,9,8][l]}}
+async function pres2(q,my){const e=$('#q');e.innerHTML='<span style="font-size:2rem">Prépare-toi… 👀</span>';await sleep(1200);
+for(const x of q.A){if(my!=tok)return;e.innerHTML=`<span class="n">${x}</span>`;await sleep(800);e.innerHTML='';await sleep(200)}
+if(my==tok)e.innerHTML='<span>Somme ? ➕</span>'}
+const m2=l=>rounds(l,mk2,pres2);
+function mk3(l){const n=[3,5,7][l],mx=l>1?1500:600;let v=R(2,l?30:20),t=''+v;
+for(let i=0;i<n;i++){let o,x,w,f=0;
+for(let k=0;k<40&&!f;k++){o=R(0,3);
+if(o==0){x=R(2,l?99:50);w=v+x}
+else if(o==1){if(v<3)continue;x=R(1,Math.min(v-1,l?80:40));w=v-x}
+else if(o==2){x=R(2,9);w=v*x}
+else{const d=[];for(let j=2;j<=12;j++)if(v%j==0&&v/j>=1)d.push(j);if(!d.length)continue;x=d[R(0,d.length-1)];w=v/x}
+if(w>=1&&w<=mx)f=1}
+if(!f){o=0;x=R(2,9);w=v+x}
+t+=` ${'+−×÷'[o]} ${x}`;v=w}
+return{t,a:v,time:[25,45,70][l]}}
+async function pres3(q,my){$('#q').innerHTML=`<span style="font-size:clamp(1.3rem,5vw,2.4rem)">${q.t}</span><small>Calcule de gauche à droite, étape par étape</small>`}
+const m3=l=>rounds(l,mk3,pres3);
+
+// ---------- MODE 4 : pluie de bulles
+function m4(l){const my=tok,f=$('#q');let B=[],lives=3,sc=0,pops=0,sp=[30,45,65][l],gap=[3000,2400,1800][l],last=performance.now(),sinceSp=gap;
+const hud=()=>$('#sc').textContent='❤️'.repeat(lives)+` ⭐${sc}`;hud();
+const i=$('#in');i.disabled=false;i.focus();msg('Tape le résultat et appuie sur Entrée !');
+S.sub=()=>{const v=+i.value;i.value='';const c=B.filter(b=>b.q.a===v).sort((a,b)=>b.y-a.y)[0];
+if(!c){f.classList.add('shake');setTimeout(()=>f.classList.remove('shake'),400);return}
+B=B.filter(b=>b!==c);c.el.classList.add('boom');setTimeout(()=>c.el.remove(),400);sc+=10;pops++;hud();confetti(15);if(pops%10==0){msg('🚀 Niveau supérieur ! Ça accélère !');confetti(80)}};
+function fr(t){if(my!=tok)return;const dt=Math.min((t-last)/1000,.1);last=t;sinceSp+=dt*1000;
+if(sinceSp>=gap*Math.max(.4,1-pops*.02)){sinceSp=0;const q=gen1(l),el=document.createElement('div');el.className='bub';el.textContent=q.t;f.appendChild(el);const x=R(0,Math.max(0,f.clientWidth-el.offsetWidth-4));el.style.left=x+'px';B.push({el,q,y:0})}
+const H=f.clientHeight,s=sp*(1+pops*.03);
+for(const b of B.slice()){b.y+=s*dt;b.el.style.transform=`translateY(${b.y}px)`;
+if(b.y>H-50){B=B.filter(z=>z!==b);b.el.remove();lives--;hud();msg('💥 Raté : '+b.q.t+' = '+b.q.a);f.classList.add('shake');setTimeout(()=>f.classList.remove('shake'),400)}}
+if(lives<=0){S.sub=null;const k='m4-'+l,nw=sc>(W[k]||0);if(nw)save(k,sc);
+end(nw&&sc>0?'🏆':'🫧',nw&&sc>0?'NOUVEAU RECORD !':'Partie terminée',`Score : ${sc} ⭐ (${pops} bulles éclatées)`,sc>=200?3:sc>=100?2:sc>=30?1:0);return}
+requestAnimationFrame(fr)}
+requestAnimationFrame(fr)}
+
+function end(emoji,title,sub,stars){stopT();S.sub=null;
+render(`<div class="res"><div class="big">${emoji}</div><h2>${title}</h2><p>${sub}</p><div class="stars">${'⭐'.repeat(stars)}${'☆'.repeat(3-stars)}</div><div class="row"><button onclick="start(${S.m},${S.l})">🔄 Rejouer</button><button class="ghost" onclick="levels(${S.m})">Niveaux</button><button class="ghost" onclick="menu()">Menu</button></div></div>`);
+if(stars>0)confetti(stars*90)}
+
+// ---------- Confettis
+const cv=$('#cv'),cx=cv.getContext('2d');let P=[],raf=0;
+function confetti(n=80){cv.width=innerWidth;cv.height=innerHeight;for(let i=0;i<n;i++)P.push({x:innerWidth/2+R(-120,120),y:innerHeight*.45,vx:R(-10,10),vy:R(-17,-3),c:`hsl(${R(0,360)},90%,60%)`,s:R(6,11),r:R(0,6)});if(!raf)loop()}
+function loop(){cx.clearRect(0,0,cv.width,cv.height);for(const p of P){p.vy+=.4;p.x+=p.vx;p.y+=p.vy;p.r+=.2;cx.fillStyle=p.c;cx.save();cx.translate(p.x,p.y);cx.rotate(p.r);cx.fillRect(-p.s/2,-p.s/2,p.s,p.s*.6);cx.restore()}
+P=P.filter(p=>p.y<innerHeight+20);raf=P.length?requestAnimationFrame(loop):0}
+menu();
+</script>
+</body>
+</html>
